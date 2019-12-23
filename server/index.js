@@ -21,11 +21,17 @@ let pathToTile = (path) =>{
 
 }
 //判断切片的xyz的值是否合理
-let tileIsValid = (tile)=>{
-    if(tile.hasOwnProperty("x") && tile.hasOwnProperty("y") &&tile.hasOwnProperty("z")){
-        if(tile.hasOwnProperty("format") && tile.format in ['pbf','mvt']){
-            let z = tile.z;
+let tileIsValid = (title)=>{
+    if(title.hasOwnProperty("x") && tile.hasOwnProperty("y") &&title.hasOwnProperty("z")){
+        if(title.hasOwnProperty("format") && title.format in ['pbf','mvt']){
+            let z = title.z;
             let size = Math.pow(2,z);
+            if (title.x >=size || title.x<0 || title.y<0 ||title.y >= size){
+                return false
+            }
+            else{
+                return true
+            }
 
         }
         else {
@@ -38,9 +44,62 @@ let tileIsValid = (tile)=>{
     }
 
 }
+/**
+ * caculate envelope in "Spherical Mercator"
+ * 计算墨卡托投影下切片的坐标范围
+ * @param {*} tile 
+ */
+let tileToEnvelope = (tile)=>{
+    let worldMercMax = 20037508.3427892;
+    let worldMercMin = -1*worldMercMax;
+    let worldMercSize = worldMercMax - worldMercMin;
+    let worldTileSize = Math.pow(2,tile.z);
+    let tileMercSize = worldMercSize/worldTileSize;
+    let xmin = worldMercMin + tile.x*tileMercSize;
+    let xmax = worldMercMin + (tile.x + 1)*titleMercSize;
+    let ymin = worldMercMin + tile.y*titleMercSize;
+    let ymax = worldMercMin + (tile.y + 1)*titleMercSize;
+    return {
+        xmin,
+        ymin,
+        xmax,
+        ymax
+    }
+}
+/**
+ * Generate SQL to materialize a query envelope in EPSG:3857
+ * Density the edges a little so the envelope can be safely converted to other coordinate systems
+ * @param {*} env 
+ */
+let envelopeToBoundsSQL = (env) => {
+    const DENSIFY_FACTOR = 4;
+    let segSize = (env.max- env.min)/DENSIFY_FACTOR;
+    sql_bound = `ST_Segmentize(ST_MakeEnvelope(${env.min},${env.min},${env.min},${env.min},3857),${segSize})`;
+    return sql_bound;
+
+}
+let envelopeToSQL = (env)=>{
+    let sql_Tile = `
+        WITH
+        bounds AS (
+            SELECT 
+        )
+    `
+}
+
 router.get('/:z/:x/:yFormat',async(ctx)=>{
     let path = ctx.params;
     let tile = pathToTile(path);
+    if(tileIsValid(tile)){
+        let tileEnvelope = tileToEnvelope(tile);
+        let envelopeSQL = envelopeToBoundsSQL(tileEnvelope);
+
+
+
+    }
+    else{
+        return
+    }
 
 
 
