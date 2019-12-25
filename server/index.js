@@ -2,6 +2,7 @@ const Koa = require('koa');
 const Router = require('koa-router');
 const app = new Koa();
 const router = new Router();
+const sqlExecute = require('./server');
 
 //获取切片的xyz的值
 let pathToTile = (path) =>{
@@ -21,12 +22,13 @@ let pathToTile = (path) =>{
 
 }
 //判断切片的xyz的值是否合理
-let tileIsValid = (title)=>{
-    if(title.hasOwnProperty("x") && tile.hasOwnProperty("y") &&title.hasOwnProperty("z")){
-        if(title.hasOwnProperty("format") && title.format in ['pbf','mvt']){
-            let z = title.z;
+let tileIsValid = (tile)=>{
+    if(tile.hasOwnProperty("x") && tile.hasOwnProperty("y") &&tile.hasOwnProperty("z")){
+        if(tile.hasOwnProperty("format") &&  ['pbf','mvt'].includes(tile.format)){
+            let z = tile.z;
             let size = Math.pow(2,z);
-            if (title.x >=size || title.x<0 || title.y<0 ||title.y >= size){
+            
+            if (tile.x >=size || tile.x<0 || tile.y<0 ||tile.y >= size){
                 return false
             }
             else{
@@ -53,16 +55,16 @@ let tileToEnvelope = (tile)=>{
     let worldMercMax = 20037508.3427892;
     let worldMercMin = -1*worldMercMax;
     let worldMercSize = worldMercMax - worldMercMin;
-    let worldTileSize = Math.pow(2,tile.z);
-    let tileMercSize = worldMercSize/worldTileSize;
+    let worldTileCount = Math.pow(2,tile.z);
+    let tileMercSize = worldMercSize/worldTileCount;
     let xmin = worldMercMin + tile.x*tileMercSize;
-    let xmax = worldMercMin + (tile.x + 1)*titleMercSize;
-    let ymin = worldMercMin + tile.y*titleMercSize;
-    let ymax = worldMercMin + (tile.y + 1)*titleMercSize;
+    let xmax = worldMercMin + (parseInt(tile.x) + 1)*tileMercSize;
+    let ymin = worldMercMax - (parseInt(tile.y) + 1)*tileMercSize;
+    let ymax = worldMercMax - tile.y*tileMercSize;
     return {
         xmin,
-        ymin,
         xmax,
+        ymin,
         ymax
     }
 }
@@ -73,36 +75,53 @@ let tileToEnvelope = (tile)=>{
  */
 let envelopeToBoundsSQL = (env) => {
     const DENSIFY_FACTOR = 4;
-    let segSize = (env.max- env.min)/DENSIFY_FACTOR;
-    sql_bound = `ST_Segmentize(ST_MakeEnvelope(${env.min},${env.min},${env.min},${env.min},3857),${segSize})`;
+    let segSize = (env.xmax- env.xmin)/DENSIFY_FACTOR;
+    
+    sql_bound = `ST_Segmentize(ST_MakeEnvelope(${env.xmin},${env.ymin},${env.xmax},${env.ymax},3857),${segSize})`;
+    // console.log(sql_bound);
     return sql_bound;
 
 }
 let envelopeToSQL = (env)=>{
+    let boundSql = envelopeToBoundsSQL(env)
     let sql_Tile = `
         WITH
         bounds AS (
-            SELECT 
+            SELECT ${boundSql} AS geom,
+                   ${boundSql}::box2d AS b2d
+        ),
+        mvtgeom AS (
+            SELECT ST_ASMVTGEOM(ST_TRANSFORM(t.geom, 3857), bounds.b2d) AS geom,gid FROM roads t,bounds WHERE ST_INTERSECTS(t.geom, ST_TRANSFORM(bounds.geom,4326))
         )
+        SELECT ST_ASMVT(mvtgeom.*) from mvtgeom
     `
+    console.log(sql_Tile);
+    return sql_Tile
 }
 
 router.get('/:z/:x/:yFormat',async(ctx)=>{
     let path = ctx.params;
     let tile = pathToTile(path);
+    
     if(tileIsValid(tile)){
         let tileEnvelope = tileToEnvelope(tile);
-        let envelopeSQL = envelopeToBoundsSQL(tileEnvelope);
-
-
-
+        // let envelopeSQL = envelopeToBoundsSQL(tileEnvelope);
+        let mvtSQL = envelopeToSQL(tileEnvelope);
+        let tileFile = await sqlExecute(mvtSQL);
+        // console.log('切片文件');
+        ctx.status = 200;
+        
+       
+        
+        ctx.set("Access-Control-Allow-Origin", "*");
+        ctx.body = tileFile.st_asmvt;
+        ctx.set('Content-Type',"application/vnd.mapbox-vector-tile");
+        // ctx.set('Content-Type',"application/x-protobuf");
+        // ctx.set('Content-Encoding','gzip');
     }
     else{
         return
     }
-
-
-
 })
 app.use(router.routes());
 

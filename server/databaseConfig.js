@@ -4,7 +4,7 @@ const config = {
     database:"gis",
     user:"sde",
     password:'sde',
-    max:20,
-    idleTimeoutMillis:3000
+    max:20000,
+    idleTimeoutMillis:30000
 }
 module.exports = config;

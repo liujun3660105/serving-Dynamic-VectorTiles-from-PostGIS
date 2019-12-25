@@ -2,18 +2,23 @@ const pg = require('pg');
 const config = require('./databaseConfig');
 
 let pool = new pg.Pool(config);
-let connectWithPool = async ()=>{
+let connectWithPool = async (sql)=>{
     let connection = await pool.connect();
     // console.log(connection);
     try {
-        let {rows,fields} = await connection.query(`
-        SELECT GID FROM BUILDINGS LIMIT 10
-    `);
-    console.log('select',JSON.stringify(rows,'','\t'));
-        
+        let result = await connection.query(sql);
+        connection.release();
+        // console.log(result.rows);
+    // console.log('select',JSON.stringify(rows,'','\t'));
+        return result.rows[0]
     } catch (error) {
         console.log(error);
     }
 
 }
-connectWithPool();
+// let connectWithPool = (sql)=>{
+//     pool.connect(()=>{
+
+//     })
+// }
+module.exports = connectWithPool;
