@@ -104,17 +104,29 @@ router.get('/:z/:x/:yFormat',async(ctx)=>{
     let tile = pathToTile(path);
     
     if(tileIsValid(tile)){
-        let tileEnvelope = tileToEnvelope(tile);
-        // let envelopeSQL = envelopeToBoundsSQL(tileEnvelope);
-        let mvtSQL = envelopeToSQL(tileEnvelope);
-        let tileFile = await sqlExecute(mvtSQL);
-        // console.log('切片文件');
-        ctx.status = 200;
-        
-       
-        
+        let tileFile;
+        if(tile.z>12){
+            let tileEnvelope = tileToEnvelope(tile);
+            // let envelopeSQL = envelopeToBoundsSQL(tileEnvelope);
+            let mvtSQL = envelopeToSQL(tileEnvelope);
+            tileFile = await sqlExecute(mvtSQL);
+            // console.log('切片文件');
+            ctx.body = tileFile.st_asmvt;
+            ctx.status = 200;
+        }else{
+            let mvtSQL = `SELECT tilefile FROM xyztile WHERE x=${tile.x} and y=${tile.y} and z=${tile.z}`
+            tileFile = await sqlExecute(mvtSQL);
+            if(tileFile){
+                ctx.body = tileFile.tilefile;
+                ctx.status = 200;
+            }
+            else{
+                ctx.body=tileFile;
+                ctx.status = 204;
+            }
+        }  
         ctx.set("Access-Control-Allow-Origin", "*");
-        ctx.body = tileFile.st_asmvt;
+        
         ctx.set('Content-Type',"application/vnd.mapbox-vector-tile");
         // ctx.set('Content-Type',"application/x-protobuf");
         // ctx.set('Content-Encoding','gzip');

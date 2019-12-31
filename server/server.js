@@ -7,6 +7,7 @@ let connectWithPool = async (sql)=>{
     // console.log(connection);
     try {
         let result = await connection.query(sql);
+        // console.log(result);
         connection.release();
         // console.log(result.rows);
     // console.log('select',JSON.stringify(rows,'','\t'));
