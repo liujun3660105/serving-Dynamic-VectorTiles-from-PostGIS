@@ -4,6 +4,24 @@ const app = new Koa();
 const router = new Router();
 const sqlExecute = require('./server');
 
+const simplifyClassify = {
+    8:20,
+    9:18,
+    10:16,
+    11:14,
+    12:12,
+    13:10,
+    14:9,
+    15:7,
+    16:5,
+    17:3,
+    18:0,
+    19:0,
+    20:0,
+    21:0,
+    22:0
+}
+
 //获取切片的xyz的值
 let pathToTile = (path) =>{
     if(path){
@@ -82,8 +100,11 @@ let envelopeToBoundsSQL = (env) => {
     return sql_bound;
 
 }
-let envelopeToSQL = (env)=>{
-    let boundSql = envelopeToBoundsSQL(env)
+let envelopeToSQL = (env,z)=>{
+    let boundSql = envelopeToBoundsSQL(env);
+    console.log(z);
+    let simplifyDistance = simplifyClassify[z];
+    // ST_Simplify(t.geom,${simplifyDistance})
     let sql_Tile = `
         WITH
         bounds AS (
@@ -91,7 +112,7 @@ let envelopeToSQL = (env)=>{
                    ${boundSql}::box2d AS b2d
         ),
         mvtgeom AS (
-            SELECT ST_ASMVTGEOM(ST_TRANSFORM(t.geom, 3857), bounds.b2d) AS geom,gid FROM roads t,bounds WHERE ST_INTERSECTS(t.geom, ST_TRANSFORM(bounds.geom,4326))
+            SELECT ST_ASMVTGEOM(ST_Simplify(ST_TRANSFORM(t.geom, 3857),${simplifyDistance}), bounds.b2d) AS geom,yddm FROM kg t,bounds WHERE ST_INTERSECTS(t.geom, ST_TRANSFORM(bounds.geom,4326))
         )
         SELECT ST_ASMVT(mvtgeom.*) from mvtgeom
     `
@@ -104,11 +125,12 @@ router.get('/:z/:x/:yFormat',async(ctx)=>{
     let tile = pathToTile(path);
     
     if(tileIsValid(tile)){
+        let z = parseInt(path.z);
         let tileFile;
-        if(tile.z>12){
+        if(tile.z>2){
             let tileEnvelope = tileToEnvelope(tile);
             // let envelopeSQL = envelopeToBoundsSQL(tileEnvelope);
-            let mvtSQL = envelopeToSQL(tileEnvelope);
+            let mvtSQL = envelopeToSQL(tileEnvelope,z);
             tileFile = await sqlExecute(mvtSQL);
             // console.log('切片文件');
             ctx.body = tileFile.st_asmvt;
